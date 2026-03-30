@@ -975,6 +975,15 @@ class ReNeBan(Star):
 
         user_id = str(user_id).strip()
 
+        if user_id == str(event.get_sender_id()):
+            return "错误：不能封禁自己"
+
+        if user_id == str(event.get_self_id()):
+            return "错误：不能封禁机器人"
+
+        if event.is_admin(user_id):
+            return f"错误：无法封禁管理员用户 {user_id}"
+
         try:
             duration_seconds = time_utils.timestr_to_int(duration)
         except ValueError:
@@ -1014,6 +1023,7 @@ class ReNeBan(Star):
             group_banned_list.append(new_ban_item)
 
         self.data_manager.write_file(self.data_manager.banlist_path, banlist)
+        self.data_manager._invalidate_and_reload_cache()
 
         duration_display = time_utils.time_format(duration)
         logger.warning(
