@@ -1,7 +1,7 @@
 # pass > ban > pass-all > ban-all
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, StarTools
-from astrbot.api import logger, AstrBotConfig
+from astrbot.api import logger, AstrBotConfig, llm_tool
 import astrbot.api.message_components as Comp
 import json
 import time as time_module
@@ -948,6 +948,79 @@ class ReNeBan(Star):
             and EventUtils.is_banned(self.enable, self.data_manager, event)[0]
         ):
             event.stop_event()
+
+    @llm_tool(name="block_user")
+    async def block_user(
+        self,
+        event: AstrMessageEvent,
+        user_id: str,
+        duration: str,
+        reason: str = "无理请求",
+    ) -> str:
+        """在当前会话中禁用指定用户的使用权限。当用户发送无理请求、骚扰、恶意行为时，可以调用此工具对该用户进行临时封禁。最大封禁时长为1周。
+
+        Args:
+            user_id(string): 要禁用的用户ID（平台用户ID，如QQ号）。
+            duration(string): 禁用时长，格式为数字+单位，如 30m（30分钟）、1h（1小时）、1d（1天）、1w（1周）。最大1周。
+            reason(string): 禁用理由，默认为"无理请求"。
+
+        Returns:
+            str: 操作结果描述
+        """
+        MAX_WEEKS = 1
+        MAX_SECONDS = MAX_WEEKS * 7 * 24 * 3600
+
+        if not user_id:
+            return "错误：未提供用户ID"
+
+        user_id = str(user_id).strip()
+
+        try:
+            duration_seconds = time_utils.timestr_to_int(duration)
+        except ValueError:
+            return f"错误：时间格式不正确。请使用格式如 30m、1h、1d、1w"
+
+        if duration_seconds <= 0:
+            return "错误：禁用时长必须大于0"
+
+        if duration_seconds > MAX_SECONDS:
+            return f"错误：禁用时长不能超过1周（{MAX_WEEKS}w）"
+
+        if not self.enable:
+            return "提示：禁用功能当前未启用，封禁操作不会生效。管理员可使用 /ban-enable 启用。"
+
+        self.data_manager.clear_banned()
+        umo = event.unified_msg_origin
+
+        banlist = self.data_manager.read_file(self.data_manager.banlist_path)
+        if not isinstance(banlist.get(umo), UserDataList):
+            banlist[umo] = UserDataList()
+        group_banned_list = banlist.get(umo)
+
+        current_time = int(time_module.time())
+        existing_user = group_banned_list.find_by_uid(user_id)
+
+        if existing_user:
+            if existing_user.time == 0:
+                return f"用户 {user_id} 已被永久禁用，无需重复操作"
+            new_time = existing_user.time + duration_seconds
+            existing_user.update_data(time=new_time, reason=reason)
+        else:
+            new_ban_item = UserDataModel(
+                uid=user_id,
+                time=current_time + duration_seconds,
+                reason=reason,
+            )
+            group_banned_list.append(new_ban_item)
+
+        self.data_manager.write_file(self.data_manager.banlist_path, banlist)
+
+        duration_display = time_utils.time_format(duration)
+        logger.warning(
+            f"[LLM Tool:block_user] 在 {umo} 禁用用户 {user_id}，时长 {duration_display}，理由：{reason}"
+        )
+
+        return f"已成功在当前会话禁用用户 {user_id}，时长：{duration_display}，理由：{reason}。该用户在此期间将无法使用机器人功能。"
 
     async def terminate(self):
         """可选择实现 terminate 函数，当插件被卸载/停用时会调用。"""
