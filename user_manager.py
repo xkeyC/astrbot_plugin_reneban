@@ -5,8 +5,10 @@
 from astrbot.api.event import AstrMessageEvent
 import astrbot.api.message_components as Comp
 
+from .exceptions import AtUserCountError
 
-class AtNumberError(ValueError):
+
+class AtNumberError(AtUserCountError):
     """
     At 数量错误（ReNeBan.get_event_at() 获取@用户时，如果 At 用户数量大于 1，会抛出此错误）
     """
