@@ -15,7 +15,7 @@ commands = {
     "dec-pass": "/dec-pass <@用户|UID（QQ号）> [时间（默认无期限）] [理由（默认无理由）] [UMO]",
     "dec-ban-all": "/dec-ban-all <@用户|UID（QQ号）> [时间（默认无期限）] [理由（默认无理由）]",
     "dec-pass-all": "/dec-pass-all <@用户|UID（QQ号）> [时间（默认无期限）] [理由（默认无理由）]",
-    "ban-reset": "/ban-reset",
+    "ban-reset": "/ban-reset <@用户|UID（QQ号）>",
 }
 # 输出文案
 messages = {
@@ -70,8 +70,8 @@ messages = {
 {commands["ban-disable"]} - 停用限制功能
 
 ⏰ 时间格式说明：
-- 数字+单位：1d(1天)/2h(2小时)/30m(30分钟)/10s(10秒)
-- 默认永久限制
+- 数字+单位：1w(1周)/1d(1天)/2h(2小时)/30m(30分钟)/10s(10秒)
+- 不填写时间字段或时间时长为 0 时为永久限制
 
 💡 注意事项：
 - 只有管理员可以操作
