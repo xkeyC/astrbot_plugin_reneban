@@ -975,13 +975,10 @@ class ReNeBan(Star):
 
         user_id = str(user_id).strip()
 
-        if user_id == str(event.get_sender_id()):
-            return "错误：不能封禁自己"
-
         if user_id == str(event.get_self_id()):
             return "错误：不能封禁机器人"
 
-        if event.is_admin(user_id):
+        if user_id == str(event.get_sender_id()) and event.is_admin():
             return f"错误：无法封禁管理员用户 {user_id}"
 
         try:

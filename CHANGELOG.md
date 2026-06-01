@@ -1,3 +1,8 @@
+# v1.1.2
+
+- 修复 LLM tool `block_user` 将目标用户误判为“自己”导致无法封禁当前消息发送者的问题。
+- 修复 `block_user` 调用 `event.is_admin(user_id)` 与当前 AstrBot 事件接口不兼容的问题。
+
 # v1.1.1
 
 - 合并上游 v1.1.0 的文档与运行时依赖声明，并保留 Fork 中允许 LLM 调用 `block_user` 的本地改动。
