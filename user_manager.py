@@ -278,7 +278,9 @@ class EventUtils:
         return at_users[0] if at_users else None
 
     @staticmethod
-    def at_command_args(event: AstrMessageEvent, defaults: tuple) -> tuple | None:
+    def at_command_args(
+        event: AstrMessageEvent, command: str, defaults: tuple
+    ) -> tuple | None:
         """
         指令 @ 了用户时，从 @ 以外的纯文本重新取指令名之后的参数，按 defaults 补齐
         （指令解析把 @ 写成 "@群名片(QQ号)"，群名片里的空格会把后面的参数挤错位）
@@ -290,9 +292,12 @@ class EventUtils:
             for seg in messages
         ):
             return None
-        text = " ".join(seg.text for seg in messages if isinstance(seg, Comp.Plain))
-        # 第一个词是指令名
-        args = text.split()[1:]
+        words = " ".join(
+            seg.text for seg in messages if isinstance(seg, Comp.Plain)
+        ).split()
+        # 去掉指令名及其之前的部分（唤醒前缀后可能有空格，如 "/ ban"）
+        start = next((i for i, w in enumerate(words) if w.endswith(command)), 0)
+        args = words[start + 1 :]
         # 多出来的参数落在最后一个（end）位置，由调用方按语法错误处理
         return tuple(args[: len(defaults)]) + defaults[len(args) :]
 
