@@ -154,12 +154,11 @@ class DatafileManager:
             else:
                 return {}
 
-    @staticmethod
     def write_file(
-        file_path: Path, data: dict[str, UserDataList] | UserDataList
+        self, file_path: Path, data: dict[str, UserDataList] | UserDataList
     ) -> None:
         """
-        将数据写入JSON文件
+        将数据写入JSON文件，并使缓存失效（下次判断时重新加载）
 
         Args:
             file_path: 要写入的文件路径
@@ -182,6 +181,8 @@ class DatafileManager:
             json.dumps(serializable_data, indent=4, ensure_ascii=False),
             encoding="utf-8",
         )
+        # 命令写入的记录必须立即生效，不能等缓存过期
+        self._cache_timestamp = 0
 
     def _clear_expired_data(
         self, data: dict[str, UserDataList] | UserDataList, is_dict: bool = False

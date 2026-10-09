@@ -1020,7 +1020,6 @@ class ReNeBan(Star):
             group_banned_list.append(new_ban_item)
 
         self.data_manager.write_file(self.data_manager.banlist_path, banlist)
-        self.data_manager._invalidate_and_reload_cache()
 
         duration_display = time_utils.time_format(duration)
         logger.warning(
