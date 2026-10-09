@@ -65,6 +65,13 @@ def time_format(time_str: str) -> str:
     return "".join(result)
 
 
+def is_timestr(timestr: str) -> bool:
+    """
+    判断是否为合法的时间字符串
+    """
+    return _TIME_RE.fullmatch(str(timestr)) is not None
+
+
 def timestr_to_int(timestr: str) -> int:
     """
     将时间字符串（如 1w2d3h4m5s）转换为秒数

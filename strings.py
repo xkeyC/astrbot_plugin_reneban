@@ -41,6 +41,8 @@ messages = {
     "global_passed_list": "全局临时解限用户：",
     "no_global_passed": "\n全局没有临时解限用户",
     "banlist_strlist_format": "\n - {user} - {time} - {reason}",
+    "ban_overridden": "{user} 在 {umo} 的临时解限（pass）记录优先于禁用，本次禁用未生效。请先用 /dec-pass 删除其解限记录后重试（若解限记录已随之清理，直接重试即可）",
+    "ban_overridden_global": "{user} 的全局临时解限（pass-all）记录不早于本次全局禁用结束，本次全局禁用未生效。请先用 /dec-pass-all 删除其解限记录后重试（若解限记录已随之清理，直接重试即可）",
     "ban_reset_success": "已清除用户 {user} 的所有记录。",
     "ban_enabled": "已临时启用禁用功能～重启后失效",
     "ban_disabled": "已临时禁用禁用功能～重启后失效",

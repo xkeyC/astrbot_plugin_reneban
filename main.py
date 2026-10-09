@@ -24,6 +24,18 @@ class ReNeBan(Star):
             StarTools.get_data_dir(), cache_ttl=cache_ttl
         )
 
+    def _overridden_by_pass(self, uid: str, umo: str | None = None) -> bool:
+        """
+        写入禁用后整理数据：禁用被优先级更高的解限记录覆盖而清除时返回 True
+        umo 为 None 时检查全局禁用
+        """
+        self.data_manager.clear_banned()
+        if umo is None:
+            records = self.data_manager._banall_list_cache
+        else:
+            records = self.data_manager._banlist_cache.get(umo) or UserDataList()
+        return records.find_by_uid(uid) is None
+
     @filter.command("banlist")
     async def banlist(self, event: AstrMessageEvent):
         """
@@ -52,7 +64,7 @@ class ReNeBan(Star):
             return
         self.data_manager.clear_banned()
         # 获取UMO
-        umo = event.unified_msg_origin
+        umo = EventUtils.session_key(event)
         # get_pass
         passlist = self.data_manager.read_file(
             self.data_manager.passlist_path
@@ -193,8 +205,11 @@ class ReNeBan(Star):
         示例：/ban @张三 7d
         注意：单次仅能禁用一个会话的一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None, None))
+        if at_args is not None:
+            time, reason, umo, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="ban", commands_text=strings.commands["ban"]
@@ -202,8 +217,8 @@ class ReNeBan(Star):
             )
             return
         if umo == None:
-            # 若umo不存在，则使用event.unified_msg_origin（当前群）
-            umo = event.unified_msg_origin
+            # 若umo不存在，则使用当前会话
+            umo = EventUtils.session_key(event)
         if reason in strings.no_reason:
             # 若reason在no_reason中，则reason为None（无理由）
             reason = None
@@ -263,6 +278,11 @@ class ReNeBan(Star):
             f"[ban]{json.dumps([{k: [dict(item) for item in v] for k, v in banlist.items()}], indent=4, ensure_ascii=False)}"
         )
         self.data_manager.write_file(self.data_manager.banlist_path, banlist)
+        if self._overridden_by_pass(ban_uid, umo):
+            yield event.plain_result(
+                strings.messages["ban_overridden"].format(umo=umo, user=ban_uid)
+            )
+            return
         yield event.plain_result(
             strings.messages["banned_user"].format(
                 umo=umo, user=ban_uid, time=time_utils.time_format(time), reason=reason
@@ -286,8 +306,11 @@ class ReNeBan(Star):
         示例：/ban-all @张三 7d
         注意：单次仅能禁用一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None))
+        if at_args is not None:
+            time, reason, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="ban-all", commands_text=strings.commands["ban-all"]
@@ -348,6 +371,11 @@ class ReNeBan(Star):
             f"[ban-all]{json.dumps([dict(item) for item in banall_list], indent=4, ensure_ascii=False)}"
         )
         self.data_manager.write_file(self.data_manager.banall_list_path, banall_list)
+        if self._overridden_by_pass(ban_uid):
+            yield event.plain_result(
+                strings.messages["ban_overridden_global"].format(user=ban_uid)
+            )
+            return
         yield event.plain_result(
             strings.messages["banned_user_global"].format(
                 user=ban_uid, time=time_utils.time_format(time), reason=reason
@@ -372,8 +400,11 @@ class ReNeBan(Star):
         示例：/pass @张三 7d
         注意：单次仅能解限一个会话的一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None, None))
+        if at_args is not None:
+            time, reason, umo, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="pass", commands_text=strings.commands["pass"]
@@ -381,8 +412,8 @@ class ReNeBan(Star):
             )
             return
         if umo == None:
-            # 若umo不存在，则使用event.unified_msg_origin（当前群）
-            umo = event.unified_msg_origin
+            # 若umo不存在，则使用当前会话
+            umo = EventUtils.session_key(event)
         if reason in strings.no_reason:
             # 若reason在no_reason中，则reason为None（无理由）
             reason = None
@@ -460,8 +491,11 @@ class ReNeBan(Star):
         示例：/pass-all @张三 7d
         注意：单次仅能解限一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None))
+        if at_args is not None:
+            time, reason, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="pass-all", commands_text=strings.commands["pass-all"]
@@ -545,8 +579,11 @@ class ReNeBan(Star):
         示例：/dec-pass @张三 7d
         注意：单次仅能操作一个会话的一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None, None))
+        if at_args is not None:
+            time, reason, umo, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="dec-pass", commands_text=strings.commands["dec-pass"]
@@ -554,8 +591,8 @@ class ReNeBan(Star):
             )
             return
         if umo == None:
-            # 若umo不存在，则使用event.unified_msg_origin（当前群）
-            umo = event.unified_msg_origin
+            # 若umo不存在，则使用当前会话
+            umo = EventUtils.session_key(event)
         if reason in strings.no_reason:
             # 若reason在no_reason中，则reason为None（无理由）
             reason = None
@@ -633,8 +670,11 @@ class ReNeBan(Star):
         示例：/dec-pass-all @张三 7d
         注意：单次仅能操作一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None))
+        if at_args is not None:
+            time, reason, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="dec-pass-all",
@@ -712,8 +752,11 @@ class ReNeBan(Star):
         示例：/dec-ban @张三 7d
         注意：单次仅能操作一个会话的一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None, None))
+        if at_args is not None:
+            time, reason, umo, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="dec-ban", commands_text=strings.commands["dec-ban"]
@@ -721,8 +764,8 @@ class ReNeBan(Star):
             )
             return
         if umo == None:
-            # 若umo不存在，则使用event.unified_msg_origin（当前群）
-            umo = event.unified_msg_origin
+            # 若umo不存在，则使用当前会话
+            umo = EventUtils.session_key(event)
         if reason in strings.no_reason:
             # 若reason在no_reason中，则reason为None（无理由）
             reason = None
@@ -800,8 +843,11 @@ class ReNeBan(Star):
         示例：/dec-ban-all @张三 7d
         注意：单次仅能操作一个用户
         """
-        if end is not None:
-            # 若end存在，说明语法错误，发送错误信息并return
+        at_args = EventUtils.at_command_args(event, ("0", None, None))
+        if at_args is not None:
+            time, reason, end = at_args
+        if end is not None or not time_utils.is_timestr(time):
+            # 若end存在或时间格式非法，说明语法错误，发送错误信息并return
             yield event.plain_result(
                 strings.messages["command_error"].format(
                     command="dec-ban-all", commands_text=strings.commands["dec-ban-all"]
@@ -873,6 +919,9 @@ class ReNeBan(Star):
         示例：/ban-reset @张三
         注意：单次仅能操作一个用户
         """
+        at_args = EventUtils.at_command_args(event, (None,))
+        if at_args is not None:
+            (end,) = at_args
         if end is not None:
             # 若end存在，说明语法错误，发送错误信息并return
             yield event.plain_result(
@@ -953,16 +1002,14 @@ class ReNeBan(Star):
     async def block_user(
         self,
         event: AstrMessageEvent,
-        user_id: str,
         duration: str,
         reason: str = "无理请求",
     ) -> str:
-        """在当前会话中禁用指定用户的使用权限。当用户发送无理请求、骚扰、恶意行为时，可以调用此工具对该用户进行临时封禁。最大封禁时长为1周。
+        """封禁当前发言人（发来这条消息、正在和你对话的用户），使其在当前会话中暂时无法使用机器人。只能封禁当前发言人，不能指定其他用户。当该用户骚扰、恶意刷屏或反复提出无理、恶意请求时，你可以自行决定调用。最长封禁1周。
 
         Args:
-            user_id(string): 要禁用的用户ID（平台用户ID，如QQ号）。
-            duration(string): 禁用时长，格式为数字+单位，如 30m（30分钟）、1h（1小时）、1d（1天）、1w（1周）。最大1周。
-            reason(string): 禁用理由，默认为"无理请求"。
+            duration(string): 封禁时长，格式为数字+单位，如 30m（30分钟）、1h（1小时）、1d（1天）、1w（1周）。最长1周。
+            reason(string): 封禁理由，默认为"无理请求"。
 
         Returns:
             str: 操作结果描述
@@ -970,21 +1017,24 @@ class ReNeBan(Star):
         MAX_WEEKS = 1
         MAX_SECONDS = MAX_WEEKS * 7 * 24 * 3600
 
-        if not user_id:
-            return "错误：未提供用户ID"
+        # 定时任务、语音等合成事件的发送者不是真正发言的人（可能是会话 ID 或统一的语音身份）
+        if event.get_platform_name() == "cron":
+            return "错误：当前不是用户发来的消息，无法封禁"
 
-        user_id = str(user_id).strip()
+        user_id = str(event.get_sender_id()).strip()
+        if not user_id:
+            return "错误：无法确定当前发言人"
 
         if user_id == str(event.get_self_id()):
             return "错误：不能封禁机器人"
 
-        if user_id == str(event.get_sender_id()) and event.is_admin():
+        if event.is_admin():
             return f"错误：无法封禁管理员用户 {user_id}"
 
         try:
             duration_seconds = time_utils.timestr_to_int(duration)
         except ValueError:
-            return f"错误：时间格式不正确。请使用格式如 30m、1h、1d、1w"
+            return "错误：时间格式不正确。请使用格式如 30m、1h、1d、1w"
 
         if duration_seconds <= 0:
             return "错误：禁用时长必须大于0"
@@ -996,7 +1046,7 @@ class ReNeBan(Star):
             return "提示：禁用功能当前未启用，封禁操作不会生效。管理员可使用 /ban-enable 启用。"
 
         self.data_manager.clear_banned()
-        umo = event.unified_msg_origin
+        umo = EventUtils.session_key(event)
 
         banlist = self.data_manager.read_file(self.data_manager.banlist_path)
         if not isinstance(banlist.get(umo), UserDataList):
@@ -1009,7 +1059,11 @@ class ReNeBan(Star):
         if existing_user:
             if existing_user.time == 0:
                 return f"用户 {user_id} 已被永久禁用，无需重复操作"
-            new_time = existing_user.time + duration_seconds
+            # 叠加后仍不超过从现在起1周，但不缩短管理员设置的更长禁用
+            new_time = max(
+                existing_user.time,
+                min(existing_user.time + duration_seconds, current_time + MAX_SECONDS),
+            )
             existing_user.update_data(time=new_time, reason=reason)
         else:
             new_ban_item = UserDataModel(
@@ -1020,6 +1074,8 @@ class ReNeBan(Star):
             group_banned_list.append(new_ban_item)
 
         self.data_manager.write_file(self.data_manager.banlist_path, banlist)
+        if self._overridden_by_pass(user_id, umo):
+            return f"用户 {user_id} 在当前会话有管理员设置的解限记录，封禁未生效"
 
         duration_display = time_utils.time_format(duration)
         logger.warning(

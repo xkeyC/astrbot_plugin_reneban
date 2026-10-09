@@ -37,6 +37,7 @@ class DatafileManager:
         self._banall_list_cache = None  # 全局禁用列表缓存 (UserDataList)
         self._cache_timestamp = 0  # 缓存创建时间戳
         self._cache_ttl = cache_ttl  # 缓存存活时间（秒）
+        self._cache_dirty = False  # 数据文件已写入、缓存未重新加载
 
         # 初始化文件
         self._initialize_files()
@@ -64,7 +65,8 @@ class DatafileManager:
         """
         current_time = time.time()
         return (
-            all(
+            not self._cache_dirty
+            and all(
                 cache is not None
                 for cache in [
                     self._passlist_cache,
@@ -85,6 +87,7 @@ class DatafileManager:
         self._passall_list_cache = self.read_file(self.passall_list_path)
         self._banall_list_cache = self.read_file(self.banall_list_path)
         self._cache_timestamp = time.time()
+        self._cache_dirty = False
 
     @staticmethod
     def read_file(file_path: Path) -> dict[str, UserDataList] | UserDataList:
@@ -182,7 +185,7 @@ class DatafileManager:
             encoding="utf-8",
         )
         # 命令写入的记录必须立即生效，不能等缓存过期
-        self._cache_timestamp = 0
+        self._cache_dirty = True
 
     def _clear_expired_data(
         self, data: dict[str, UserDataList] | UserDataList, is_dict: bool = False

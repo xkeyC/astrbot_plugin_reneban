@@ -2,6 +2,8 @@
 用户(禁用)数据模型，获取at，判断是否禁用，并提供操作接口
 """
 
+import time
+
 from astrbot.api.event import AstrMessageEvent
 import astrbot.api.message_components as Comp
 
@@ -276,6 +278,36 @@ class EventUtils:
         return at_users[0] if at_users else None
 
     @staticmethod
+    def at_command_args(event: AstrMessageEvent, defaults: tuple) -> tuple | None:
+        """
+        指令 @ 了用户时，从 @ 以外的纯文本重新取指令名之后的参数，按 defaults 补齐
+        （指令解析把 @ 写成 "@群名片(QQ号)"，群名片里的空格会把后面的参数挤错位）
+        没有 @ 用户时返回 None，沿用指令解析出的参数
+        """
+        messages = event.get_messages()
+        if not any(
+            isinstance(seg, Comp.At) and str(seg.qq) != str(event.get_self_id())
+            for seg in messages
+        ):
+            return None
+        text = " ".join(seg.text for seg in messages if isinstance(seg, Comp.Plain))
+        # 第一个词是指令名
+        args = text.split()[1:]
+        # 多出来的参数落在最后一个（end）位置，由调用方按语法错误处理
+        return tuple(args[: len(defaults)]) + defaults[len(args) :]
+
+    @staticmethod
+    def session_key(event: AstrMessageEvent) -> str:
+        """
+        记录所属的会话（UMO）
+        开启 unique_session 时群聊会话按发送者隔离，仍按群记录，
+        否则管理员的 ban 只会落在管理员自己的隔离会话里
+        """
+        if event.get_extra("_session_isolated") and event.get_group_id():
+            return f"{event.get_platform_id()}:{event.get_message_type().value}:{event.get_group_id()}"
+        return event.unified_msg_origin
+
+    @staticmethod
     def is_banned(
         enable: bool, data_manager: "DatafileManager", event: AstrMessageEvent
     ):
@@ -291,7 +323,14 @@ class EventUtils:
             data_manager.clear_banned()
 
         # 获取UMO
-        umo = event.unified_msg_origin
+        umo = EventUtils.session_key(event)
+        sender_id = event.get_sender_id()
+        now = int(time.time())
+
+        def active(item: UserDataModel) -> bool:
+            # 已过期但尚未被清理的记录不再生效
+            return item.uid == sender_id and (item.time == 0 or item.time >= now)
+
         # pass - 使用缓存数据
         # 如果不存在则返回空列表
         umo_pass_list = (
@@ -301,7 +340,7 @@ class EventUtils:
         )
         # 遍历umo_pass_list中用户数据的uid
         for item in umo_pass_list:
-            if item.uid == event.get_sender_id():
+            if active(item):
                 return (False, item.reason)
         # ban - 使用缓存数据
         # 如果不存在则返回空列表
@@ -312,16 +351,16 @@ class EventUtils:
         )
         # 遍历umo_ban_list中用户数据的uid
         for item in umo_ban_list:
-            if item.uid == event.get_sender_id():
+            if active(item):
                 return (True, item.reason)
         # pass-all - 使用缓存数据
         # 遍历passall_list中用户数据的uid
         for item in data_manager._passall_list_cache:
-            if item.uid == event.get_sender_id():
+            if active(item):
                 return (False, item.reason)
         # ban-all - 使用缓存数据
         # 遍历banall_list中用户数据的uid
         for item in data_manager._banall_list_cache:
-            if item.uid == event.get_sender_id():
+            if active(item):
                 return (True, item.reason)
         return (False, None)
